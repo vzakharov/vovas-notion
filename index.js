@@ -93,19 +93,16 @@ function Notion(token = process.env.NOTION_TOKEN, baseURL = process.env.NOTION_A
     },
 
     // query a database
-    async queryDatabase(databaseId, query) {
-      return (
+    async queryDatabase(databaseId, query, { unwrapRelations = true, propsFirst = true } = {} ) {
+      let data = (
         await api.post(`databases/${databaseId}/query`, query)
-      ).data.results.map( result => {
-        let { properties, ...details } = result
-        console.log( result )
-        denotionize(result)
-        return {
-          ...result.properties,
-          details,
-          properties
-        }
-      })
+      ).data.results.map( result => 
+        denotionize(result, { unwrapRelations, propsFirst })
+      )
+
+      console.log(`Database ${databaseId} queried:`, data)
+
+      return data
     },
 
     // Get page by name
@@ -228,11 +225,17 @@ function notionize({ properties, content }) {
   }
 }
 
-function denotionize(data, key = 'properties') {
+function denotionize(data, { propKey = 'properties', unwrapRelations = true, propsFirst = true } = {} ) {
 
   let jsonKeys = []
 
-  data[key] = chain(data[key])
+  let { [propKey]: rawProps, ...details } = data
+
+  console.log( 'raw data:', data )
+  console.log( 'raw props:', rawProps )
+  console.log( 'details:', details )
+
+  data[propKey] = chain(rawProps)
     .mapKeys( ( value, key ) => {
       key = camelCase(key)
       if ( key.endsWith('Json') ) {
@@ -266,6 +269,22 @@ function denotionize(data, key = 'properties') {
 
     } )
     .value()
+
+  if ( propsFirst ) {
+
+    console.log( 'data before putting props first:', data )
+
+    data = {
+      ...data[propKey],
+      [`raw_${propKey}`]: rawProps,
+      details
+    }
+
+  }
+
+  console.log( 'denotionized data:', data )
+
+  return data
 
 }
 
