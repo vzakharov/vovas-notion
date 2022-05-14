@@ -8,13 +8,15 @@ import {
   chain, camelCase, upperFirst, keys
 } from 'lodash'
 
-function Notion(token) {
+function Notion(token = process.env.NOTION_TOKEN, baseURL = process.env.NOTION_API_URL) {
 
+  console.log({ token, baseURL })
   let api = axios.create({
-    baseURL: process.env.NOTION_API_URL,
+    baseURL,
     headers: {
       ...token ? {
-        Authorization: `Bearer ${token}`
+        Authorization: `Bearer ${token}`,
+        'Notion-Version': '2022-02-22'
       } : {}
     }
   })
@@ -70,6 +72,8 @@ function Notion(token) {
 
       denotionize(data)
 
+      console.log(`Page ${id} fetched:`, data)
+
       return data
 
     },
@@ -94,10 +98,12 @@ function Notion(token) {
         await api.post(`databases/${databaseId}/query`, query)
       ).data.results.map( result => {
         let { properties, ...details } = result
+        console.log( result )
         denotionize(result)
         return {
           ...result.properties,
-          details
+          details,
+          properties
         }
       })
     },
@@ -240,7 +246,9 @@ function denotionize(data, key = 'properties') {
 
       const extract = object =>
         object?.type ?
-          extract(object[object.type]) :
+          object.type == 'select' ?
+            object.select?.name :
+            extract(object[object.type]) :
           object
 
       let value = extract(object)
@@ -262,5 +270,7 @@ function denotionize(data, key = 'properties') {
 }
 
 Notion.anon = new Notion()
+
+console.log('Notion loaded')
 
 export default Notion
