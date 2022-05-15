@@ -1,12 +1,20 @@
 // Various methods to work with Notion API
 
+console.log('Starting vovas-notion...')
+
 // axios
 import axios from 'axios'
 
 // lodash
-import { 
+import _ from 'lodash'
+
+const { 
   chain, camelCase, upperFirst, keys
-} from 'lodash'
+} = _
+
+import {
+  isSingular, pluralize
+} from 'pluralize'
 
 function Notion(token = process.env.NOTION_TOKEN, baseURL = process.env.NOTION_API_URL) {
 
@@ -33,7 +41,7 @@ function Notion(token = process.env.NOTION_TOKEN, baseURL = process.env.NOTION_A
         ...notionize({ properties, content })
       })
 
-      denotionize(data)
+      data = denotionize(data)
 
       return data
 
@@ -48,7 +56,7 @@ function Notion(token = process.env.NOTION_TOKEN, baseURL = process.env.NOTION_A
         notionize({ properties, content })
       )
 
-      denotionize(data)
+      data = denotionize(data)
 
       return data
 
@@ -70,7 +78,7 @@ function Notion(token = process.env.NOTION_TOKEN, baseURL = process.env.NOTION_A
         data
       } = await api.get(`pages/${id}`)
 
-      denotionize(data)
+      data = denotionize(data)
 
       console.log(`Page ${id} fetched:`, data)
 
@@ -93,16 +101,19 @@ function Notion(token = process.env.NOTION_TOKEN, baseURL = process.env.NOTION_A
     },
 
     // query a database
-    async queryDatabase(databaseId, query, { unwrapRelations = true, propsFirst = true } = {} ) {
+    async queryDatabase(databaseId, query, { unwrap: unwrapKeys } = {} ) {
       let data = (
         await api.post(`databases/${databaseId}/query`, query)
-      ).data.results.map( result => 
-        denotionize(result, { unwrapRelations, propsFirst })
-      )
+      ).data.results.map(denotionize)
 
       console.log(`Database ${databaseId} queried:`, data)
 
+      if ( unwrapKeys ) {
+        await this.unwrap(data, unwrapKeys)
+      }
+
       return data
+
     },
 
     // Get page by name
@@ -152,6 +163,47 @@ function Notion(token = process.env.NOTION_TOKEN, baseURL = process.env.NOTION_A
       
       return results
 
+    },
+
+    async unwrap(data, unwrapKeys) {
+      // Fetches complete page data for pages that only contain the id
+
+      let cache = {}
+      let promises = []
+    
+      // For all keys that represent a relation, get the related page
+      for (let result of data) {
+    
+        for (let key in unwrapKeys) {
+          let items = result[key]
+
+          // If it's not an array, make it one
+          if ( !Array.isArray(items) )
+            items = [items]
+              
+          promises.push(Promise.all(items.map(async (item) => {
+    
+            console.log('item:', item)
+    
+            // If there was no request to get this page yet, get & cache it
+            cache[item.id] = cache[item.id] || this.getPage(item.id)
+            console.log('cache:', cache)
+    
+            // Get the page from the cache (or the request)
+            let page = await cache[item.id]
+            console.log('page:', page)
+            delete item.id
+            _.assign(item, page)
+    
+            console.log('modified item:', item)
+    
+          })))
+    
+        }
+      }
+    
+      return Promise.all(promises)
+    
     }
         
 
@@ -225,61 +277,51 @@ function notionize({ properties, content }) {
   }
 }
 
-function denotionize(data, { propKey = 'properties', unwrapRelations = true, propsFirst = true } = {} ) {
+function denotionize(data, { propKey = 'properties', unwrap } = {} ) {
 
   let jsonKeys = []
 
-  let { [propKey]: rawProps, ...details } = data
-
-  console.log( 'raw data:', data )
-  console.log( 'raw props:', rawProps )
-  console.log( 'details:', details )
-
-  data[propKey] = chain(rawProps)
-    .mapKeys( ( value, key ) => {
-      key = camelCase(key)
-      if ( key.endsWith('Json') ) {
-        let type = 'object'
-        key = key.replace(/Json$/, '')
-        jsonKeys.push(key)
-      }
-      return key
-    })
-    .mapValues( ( object, key ) => {
-
-      const extract = object =>
-        object?.type ?
-          object.type == 'select' ?
-            object.select?.name :
-            extract(object[object.type]) :
-          object
-
-      let value = extract(object)
-      // console.log({ object, value })
-
-      if ( ['title', 'rich_text'].includes(object.type) ) {
-        value = value[0]?.plain_text
-
-        if ( jsonKeys.includes(key) ) {
-          value = JSON.parse(value || null)
+  data = {
+    raw: data,
+    ...chain(data[propKey])
+      .mapKeys( ( value, key ) => {
+        key = camelCase(key)
+        if ( key.endsWith('Json') ) {
+          let type = 'object'
+          key = key.replace(/Json$/, '')
+          jsonKeys.push(key)
         }
-      }
+        return key
+      })
+      .mapValues( ( object, key ) => {
 
-      return value
+        const extract = object =>
+          object?.type ?
+            object.type == 'select' ?
+              object.select?.name
+              : object.type == 'relation' ?
+                // If the key is in singular, get the first item only
+                isSingular(key) ?
+                  object.relation?.[0]
+                  : object.relation
+                : extract(object[object.type])
+            : object
 
-    } )
-    .value()
+        let value = extract(object)
+        // console.log({ object, value })
 
-  if ( propsFirst ) {
+        if ( ['title', 'rich_text'].includes(object.type) ) {
+          value = value[0]?.plain_text
 
-    console.log( 'data before putting props first:', data )
+          if ( jsonKeys.includes(key) ) {
+            value = JSON.parse(value || null)
+          }
+        }
 
-    data = {
-      ...data[propKey],
-      [`raw_${propKey}`]: rawProps,
-      details
-    }
+        return value
 
+      } )
+      .value()
   }
 
   console.log( 'denotionized data:', data )
@@ -288,8 +330,9 @@ function denotionize(data, { propKey = 'properties', unwrapRelations = true, pro
 
 }
 
+
 Notion.anon = new Notion()
 
-console.log('Notion loaded')
+console.log('vovas-notion loaded')
 
 export default Notion
