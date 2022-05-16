@@ -32,13 +32,13 @@ function Notion(token = process.env.NOTION_TOKEN, baseURL = process.env.NOTION_A
   Object.assign(this, {
 
     // Create page
-    async createPage({ parent, properties, content }) {
+    async createPage({ parent, properties, titleProp, content }) {
 
       let {
         data
       } = await api.post('pages', {
         parent,
-        ...notionize({ properties, content })
+        ...notionize({ properties, content, titleProp })
       })
 
       data = denotionize(data)
@@ -80,7 +80,7 @@ function Notion(token = process.env.NOTION_TOKEN, baseURL = process.env.NOTION_A
 
       data = denotionize(data)
 
-      console.log(`Page ${id} fetched:`, data)
+      // console.log(`Page ${id} fetched:`, data)
 
       return data
 
@@ -106,7 +106,7 @@ function Notion(token = process.env.NOTION_TOKEN, baseURL = process.env.NOTION_A
         await api.post(`databases/${databaseId}/query`, query)
       ).data.results.map(denotionize)
 
-      console.log(`Database ${databaseId} queried:`, data)
+      // console.log(`Database ${databaseId} queried:`, data)
 
       if ( unwrapKeys ) {
         await this.unwrap(data, unwrapKeys)
@@ -183,19 +183,19 @@ function Notion(token = process.env.NOTION_TOKEN, baseURL = process.env.NOTION_A
               
           promises.push(Promise.all(items.map(async (item) => {
     
-            console.log('item:', item)
+            // console.log('item:', item)
     
             // If there was no request to get this page yet, get & cache it
             cache[item.id] = cache[item.id] || this.getPage(item.id)
-            console.log('cache:', cache)
+            // console.log('cache:', cache)
     
             // Get the page from the cache (or the request)
             let page = await cache[item.id]
-            console.log('page:', page)
+            // console.log('page:', page)
             delete item.id
             _.assign(item, page)
     
-            console.log('modified item:', item)
+            // console.log('modified item:', item)
     
           })))
     
@@ -211,7 +211,7 @@ function Notion(token = process.env.NOTION_TOKEN, baseURL = process.env.NOTION_A
 
 }
 
-function notionize({ properties, content }) {
+function notionize({ properties, titleProp = 'name', content }) {
 
   let jsonKeys = []
 
@@ -221,25 +221,39 @@ function notionize({ properties, content }) {
       .mapValues((value, key) => {
         
         if (typeof value === 'number') {
+
           return {
             number: value
           }
+
         }
 
-        else {
-          let isObject = value && typeof value === 'object'
-
-          if ( isObject ) {
-            jsonKeys.push(key)
-          }
+        else if (typeof value === 'string') {
 
           return {
-            [key === 'name' ? 'title' : 'rich_text']: [{
+            [ key === titleProp ? 'title' : 'rich_text' ]: [{ 
               text: {
-                content: isObject ? JSON.stringify(value) : value
+                content: value 
               }
             }]
           }
+
+        } else {
+
+          let isJsonObject = value?.json
+
+          if ( isJsonObject ) {
+            jsonKeys.push(key)
+          }
+
+          return isJsonObject ? {
+            rich_text: [{
+              text: {
+                content: value.json
+              }
+            }] 
+          } : value
+
         }
 
       })
@@ -257,22 +271,24 @@ function notionize({ properties, content }) {
       })
       .value(),
 
-    children: content.plain && (
-      content = (
-        typeof content.plain === 'string' ? content.plain : JSON.stringify(content.plain, null, 2)
-      ).split(/\n+/),
-      content.map( line => ({
-        type: 'paragraph',
-        paragraph: {
-          rich_text: [{
-            type: 'text',
-            text: {
-              content: line
-            }
-          }]
-        }
-      }) )
-    )
+    ...content ? {
+      children: content.plain && (
+        content = (
+          typeof content.plain === 'string' ? content.plain : JSON.stringify(content.plain, null, 2)
+        ).split(/\n+/),
+        content.map( line => ({
+          type: 'paragraph',
+          paragraph: {
+            rich_text: [{
+              type: 'text',
+              text: {
+                content: line
+              }
+            }]
+          }
+        }) )
+      )
+    } : {}
 
   }
 }
@@ -324,7 +340,7 @@ function denotionize(data, { propKey = 'properties', unwrap } = {} ) {
       .value()
   }
 
-  console.log( 'denotionized data:', data )
+  // console.log( 'denotionized data:', data )
 
   return data
 
