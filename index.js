@@ -180,17 +180,25 @@ function Notion(token = process.env.NOTION_TOKEN, baseURL = process.env.NOTION_A
           // If it's not an array, make it one
           if ( !Array.isArray(items) )
             items = [items]
+
+          // console.log('Items:', items)
               
           promises.push(Promise.all(items.map(async (item) => {
     
             // console.log('item:', item)
+            let { id } = item
+
+            if ( !id ) {
+              console.log('No id found for item:', item)
+              return
+            }
     
             // If there was no request to get this page yet, get & cache it
-            cache[item.id] = cache[item.id] || this.getPage(item.id)
+            cache[id] = cache[id] || this.getPage(id)
             // console.log('cache:', cache)
     
             // Get the page from the cache (or the request)
-            let page = await cache[item.id]
+            let page = await cache[id]
             // console.log('page:', page)
             delete item.id
             _.assign(item, page)
