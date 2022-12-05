@@ -228,6 +228,7 @@ function notionize({ properties, titleProp = 'name', content }) {
     properties: chain(properties)
       .mapValues((value, key) => {
         
+        // Number
         if (typeof value === 'number') {
 
           return {
@@ -236,6 +237,16 @@ function notionize({ properties, titleProp = 'name', content }) {
 
         }
 
+        // Boolean = checkbox
+        else if ( typeof value === 'boolean' ) {
+
+          return {
+            checkbox: value
+          }
+
+        }
+
+        // String
         else if (typeof value === 'string') {
 
           return {
