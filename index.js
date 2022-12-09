@@ -2,23 +2,27 @@
 
 console.log('Starting vovas-notion...')
 
-// axios
-import axios from 'axios'
+// ES6:
+// import axios from 'axios'
+// import _ from 'lodash'
+// import pluralize from 'pluralize'
 
-// lodash
-import _ from 'lodash'
+// CommonJS:
+const axios = require('axios')
+const _ = require('lodash')
+const pluralize = require('pluralize')
 
 const { 
   chain, camelCase, upperFirst, keys
 } = _
 
-import {
-  isSingular, pluralize
-} from 'pluralize'
 
-function Notion(token = process.env.NOTION_TOKEN, baseURL = process.env.NOTION_API_URL) {
+function Notion(token = process.env.NOTION_TOKEN, baseURL = process.env.NOTION_API_URL, { debug = false } = {} ) {
 
-  console.log({ token, baseURL })
+  const log = (...args) => debug && console.log(...args)
+
+  log({ token, baseURL })
+
   let api = axios.create({
     baseURL,
     headers: {
@@ -28,6 +32,8 @@ function Notion(token = process.env.NOTION_TOKEN, baseURL = process.env.NOTION_A
       } : {}
     }
   })
+
+  log( 'API:', api )
   
   Object.assign(this, {
 
@@ -336,7 +342,7 @@ function denotionize(data, { propKey = 'properties', unwrap } = {} ) {
               object.select?.name
               : object.type == 'relation' ?
                 // If the key is in singular, get the first item only
-                isSingular(key) ?
+                pluralize.isSingular(key) ?
                   object.relation?.[0]
                   : object.relation
                 : extract(object[object.type])
@@ -370,4 +376,9 @@ Notion.anon = new Notion()
 
 console.log('vovas-notion loaded')
 
-export default Notion
+// ES6
+// export default Notion
+// CommonJS
+module.exports = {
+  default: Notion,
+}
