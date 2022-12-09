@@ -17,7 +17,7 @@ const {
 } = _
 
 
-function Notion(token = process.env.NOTION_TOKEN, baseURL = process.env.NOTION_API_URL, { debug = false } = {} ) {
+function Notion(token = process.env.NOTION_TOKEN, { baseURL = process.env.NOTION_API_URL, debug = false } = {} ) {
 
   const log = (...args) => debug && console.log(...args)
 
