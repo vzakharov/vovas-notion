@@ -19,9 +19,8 @@ const {
 
 function Notion(token = process.env.NOTION_TOKEN, { baseURL = process.env.NOTION_API_URL, debug = false } = {} ) {
 
-  const log = (...args) => debug && console.log(...args)
 
-  log({ token, baseURL })
+  console.log({ debug, token, baseURL })
 
   let api = axios.create({
     baseURL,
@@ -33,7 +32,7 @@ function Notion(token = process.env.NOTION_TOKEN, { baseURL = process.env.NOTION
     }
   })
 
-  log( 'API:', api )
+  console.log( 'API:', api )
   
   Object.assign(this, {
 
