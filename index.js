@@ -1,6 +1,6 @@
 // Various methods to work with Notion API
 
-console.log('Starting vovas-notion...')
+console.log("Starting vovas-notion version 1.1.0")
 
 // ES6:
 // import axios from 'axios'
