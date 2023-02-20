@@ -1,15 +1,17 @@
 // Various methods to work with Notion API
 
 import axios, { AxiosInstance } from 'axios'
-import * as _ from 'lodash'
-import * as pluralize from 'pluralize'
+import _ from 'lodash'
+import pluralize from 'pluralize'
+
+// console.log(_)
 
 const { chain, camelCase, keys } = _
 
 export interface NotionOptions {
   debug?: boolean
   baseURL?: string
-  ignoreTokenWarning?: boolean
+  ignoreTokenWarnings?: boolean
 }
 
 export interface IDatabase {
@@ -39,25 +41,24 @@ export default class Notion {
 
   token?: string
   api: AxiosInstance
-  static anon: Notion = new Notion()
 
   constructor(token?: string, options: NotionOptions = {} ) {
 
-    let { debug, baseURL, ignoreTokenWarning } = options
+    let { debug, baseURL, ignoreTokenWarnings } = options
 
-    if ( !token ) {
-      console.warn('No token provided. The API won\'t work unless you create your own server/proxy that has the same interface as Notion API and accepts non-authenticated requests.')
-    } else {
-      // If this is a browser environment, throw an error because it is insecure to expose the token to the client
-      if ( typeof window !== 'undefined' ) {
-        if ( !ignoreTokenWarning ) {
-          throw new Error('Notion API token should not be exposed to the client. Please either move all API calls to the server or use a proxy that accepts non-authenticated requests. If you are sure you want to do this, pass `ignoreTokenWarning: true` to the constructor.')
+    if ( !ignoreTokenWarnings) {
+      if ( !token ) {
+        console.warn('No token provided. The API won\'t work unless you create your own server/proxy that has the same interface as Notion API and accepts non-authenticated requests.')
+      } else {
+        // If this is a browser environment, throw an error because it is insecure to expose the token to the client
+        if ( typeof window !== 'undefined' ) {
+          throw new Error('Notion API token should not be exposed to the client. Please either move all API calls to the server or use a proxy that accepts non-authenticated requests. If you are sure you want to do this, pass `ignoreTokenWarnings: true` to the constructor.')
         }
       }
     }
 
     debug ??= false
-    baseURL ??= process.env.NOTION_API_URL ?? 'https://api.notion.com/v1/'
+    baseURL ??= process.env?.NOTION_API_URL ?? 'https://api.notion.com/v1/'
     this.api = axios.create({
       baseURL,
       headers: {
@@ -357,7 +358,7 @@ export function notionize(config: {
           return isJsonObject ? {
             rich_text: [{
               text: {
-                content: value.json
+                content: `"${JSON.stringify(value.json)}`
               }
             }] 
           } : value
@@ -461,5 +462,10 @@ export function denotionize(data: Data, options: {
 }
 
 // Notion.anon = new Notion()
+export const anon = new Notion(
+  undefined,
+  { ignoreTokenWarnings: true }
+)
 
 // console.log('vovas-notion loaded')
+
