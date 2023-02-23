@@ -107,15 +107,19 @@ export default class Notion {
     // async updatePage(id, { properties, content }) {
     async updatePage(id: string, options: {
       properties: Data,
-      content?: Content
+      content?: Content,
+      titleProp?: string
     }): Promise<Data> {
 
-      let { properties, content } = options
+      let { properties, content, titleProp } = options
+
+      let notionized = notionize({ properties, content, titleProp })
+      // console.log('Notionized:', notionized)
 
       let {
         data
       } = await this.api.patch(`pages/${id}`,
-        notionize({ properties, content })
+        notionized
       )
 
       data = denotionize(data)
@@ -358,7 +362,7 @@ export function notionize(config: {
           return isJsonObject ? {
             rich_text: [{
               text: {
-                content: `"${JSON.stringify(value.json)}`
+                content: JSON.stringify(value.json)
               }
             }] 
           } : value
